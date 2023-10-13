@@ -11,7 +11,7 @@ object Implementation extends Template {
     }
 
     def interpEnv(e: Expr, env: Env): Value = e match {
-      case Id(x) => env.getOrElse(x, error("1"))
+      case Id(x) => env.getOrElse(x, error())
       case IntE(n) => IntV(n)
       case BooleanE(b) => BooleanV(b)
       case Add(l, r) =>
@@ -68,7 +68,7 @@ object Implementation extends Template {
             } else {
               interpEnv(f, env)
             }
-          case _ => error("2")
+          case _ => error()
         }
       case TupleE(elist) =>
         val vlist = elist.map(interpEnv(_, env))
@@ -136,7 +136,7 @@ object Implementation extends Template {
             } else {
               error()
             }
-          case _ => error("3")
+          case _ => error()
         }
       case Test(e, t) =>
         val v = interpEnv(e, env)
