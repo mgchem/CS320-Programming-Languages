@@ -11,7 +11,7 @@ object Implementation extends Template {
     }
 
     def interpEnv(e: Expr, env: Env): Value = e match {
-      case Id(x) => env.getOrElse(x, error())
+      case Id(x) => env.getOrElse(x, error("1"))
       case IntE(n) => IntV(n)
       case BooleanE(b) => BooleanV(b)
       case Add(l, r) =>
@@ -68,49 +68,76 @@ object Implementation extends Template {
             } else {
               interpEnv(f, env)
             }
-          case _ => error()
+          case _ => error("2")
         }
       case TupleE(elist) =>
         val vlist = elist.map(interpEnv(_, env))
         TupleV(vlist)
       case Proj(e, idx) =>
-        val TupleV(v) = interpEnv(e, env)
-        v.apply(idx - 1)
+        interpEnv(e, env) match {
+          case TupleV(v) =>
+            if (v.length < idx) {
+            error()
+            } else {
+            v.apply(idx - 1)
+            }
+          case _ => error()
+        }
       case NilE => NilV
       case ConsE(h, t) =>
         val v1 = interpEnv(h, env)
-        val v2 = interpEnv(t, env)
-        ConsV(v1, v2)
+        interpEnv(t, env) match {
+          case ConsV(th, tt) =>
+            ConsV(v1, ConsV(th, tt))
+          case NilV => ConsV(v1, NilV)
+          case _ => error()
+        }
       case Empty(e) =>
         val v = interpEnv(e, env)
         v match {
           case NilV => BooleanV(true)
-          case _ => BooleanV(false)
+          case ConsV(_, _) => BooleanV(false)
+          case _ => error()
         }
       case Head(e) =>
-        val ConsV(h, _) = interpEnv(e, env)
-        h
+        interpEnv(e, env) match {
+          case ConsV(h, _) => h
+          case _ => error()
+        }
       case Tail(e) =>
-        val ConsV(_, t) = interpEnv(e, env)
-        t
+        interpEnv(e, env) match {
+          case ConsV(_, t) => t
+          case _ => error()
+        }
       case Val(x, e1, e2) =>
         val v1 = interpEnv(e1, env)
         interpEnv(e2, env + (x -> v1))
       case Fun(plist, b) =>
         CloV(plist, b, env)
       case RecFuns(dflist, b) =>
+        val temp = CloV(List(""), NilE, env)
         val flist = dflist.map({
           case FunDef(x, plist, bo) =>
             val cloV = CloV(plist, bo, env)
-            val nenv = env + (x -> cloV)
-            cloV.env = nenv
+            temp.env += (x -> cloV)
             cloV
-            })
-        interpEnv(b, flist.apply(0).env)
+          }
+        )
+        for (v <- flist) {
+          v.env = temp.env
+        }
+        interpEnv(b, temp.env)
       case App(f, alist) =>
-        val CloV(plist, b, fenv) = interpEnv(f, env)
-        val avlist = alist.map(interpEnv(_, env))
-        interpEnv(b, fenv ++ (plist zip avlist).toMap)
+        interpEnv(f, env) match {
+          case CloV(plist, b, fenv) =>
+            val avlist = alist.map(interpEnv(_, env))
+            if (plist.length == avlist.length) {
+              interpEnv(b, fenv ++ (plist zip avlist).toMap)
+            } else {
+              error()
+            }
+          case _ => error("3")
+        }
       case Test(e, t) =>
         val v = interpEnv(e, env)
         v match {
